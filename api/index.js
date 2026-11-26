@@ -103,7 +103,7 @@ app.use((err, req, res, next) => {
 // Listen locally if executed directly (Not in Vercel Serverless environment)
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SafeBlog] Server running on http://localhost:${PORT}`);
     console.log(`[SafeBlog] SSE Stream ready at http://localhost:${PORT}/api/chat/stream`);
   });
