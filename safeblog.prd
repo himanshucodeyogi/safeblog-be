@@ -1,0 +1,97 @@
+Product Requirements Document (PRD)
+
+Project Name: Safe Blog
+
+Concept: A 100% incognito messaging application cloaked as a premium, minimalist journaling and blogging app.
+Platform: Android & iOS (Flutter)
+Backend: Node.js (Express) deployed on Vercel (Serverless)
+Database: MongoDB
+Real-Time Architecture: Server-Sent Events (SSE) & Background Polling (100% Custom, No Firebase/Pusher)
+
+1. Executive Summary
+
+The primary objective of Safe Blog is to provide a highly secure, private messaging environment that completely masks its true identity. When opened, it functions as a beautifully designed personal journaling platform. However, a hidden universal lock screen routes users to a fully functional, end-to-end encrypted, Telegram-style private chat interface upon entering a specific "Secret PIN."
+
+2. Core Mechanics (The Stealth Engine)
+
+Dual-PIN Lock Screen (The Gatekeeper):
+
+App opens to a standard PIN pad.
+
+Entering Blog PIN (e.g., 1234) opens the Decoy Safe Blog.
+
+Entering Safe PIN (e.g., 9999) plays a 1.5s fake "Syncing Entries" animation, then routes to Private Chat.
+
+Ghost Notifications (Vercel-Friendly):
+
+Handled via Flutter workmanager (background API polling) to fetch new messages.
+
+Incoming private messages trigger local push notifications disguised as generic journaling prompts (e.g., "Daily Prompt: What are you grateful for today?").
+
+Tapping the notification requires PIN entry. Blog PIN opens a dummy blog; Safe PIN opens the chat.
+
+User Discovery: Users search for other Safe Blog users via exact Username or Email within the Secret Interface.
+
+Panic Switch (Quick Escape): A physical gesture (e.g., double-tapping the app bar) instantly kills the chat UI and flips back to the Decoy Blog.
+
+3. Architecture & Tech Stack
+
+Frontend (Flutter)
+
+UI Framework: Material 3 / Cupertino.
+
+State Management: Riverpod or Bloc.
+
+Local Storage: flutter_secure_storage for PINs, JWT, and encrypted chat caching.
+
+Background Tasks: workmanager for background message polling.
+
+Backend (Node.js on Vercel)
+
+Framework: Express.js optimized for Vercel Serverless Functions.
+
+Real-time: Server-Sent Events (SSE) for active chat streaming, fallback to short-polling.
+
+Auth: Custom JWT via google-auth-library (Google OAuth 2.0).
+
+Database (MongoDB)
+
+Strict collection isolation between decoy data and secret data.
+
+4. UI/UX Specifications (Based on 14 Ref Screenshots)
+
+4.1 Interface A: The Decoy App (Safe Blog Mode)
+
+Vibe: Aesthetic, calming, premium.
+
+Typography: Serif (Titles) & Sans-serif (Body).
+
+Colors: Dark Theme (#121212), Light Theme (Off-white/Cream). Accent: Orange/Gold.
+
+Layout: Bottom navigation (Today, Explore, Calendar, Profile), center (+) FAB, mood tags.
+
+4.2 Interface B: The Secret App (Private Chat Mode)
+
+Vibe: Utilitarian, familiar (Telegram architecture).
+
+Colors: Standard dark blue-grey (Dark) / clean white (Light) with muted outgoing bubbles.
+
+Layout: Top app bar with folders, circular avatars, standard messaging bubbles, read receipts.
+
+5. MongoDB Database Schema Models
+
+1. Users
+
+_id, googleId (String), email (String), username (String), blogPinHash (String), safePinHash (String)
+
+2. DecoyBlogs
+
+_id, userId (Ref: Users), title (String), content (String), mood (String), createdAt (Date)
+
+3. PrivateChats
+
+_id, participants (Array of Refs: Users), lastMessageAt (Date)
+
+4. Messages
+
+_id, chatId (Ref: PrivateChats), senderId (Ref: Users), text (String), isRead (Boolean), timestamp (Date)
