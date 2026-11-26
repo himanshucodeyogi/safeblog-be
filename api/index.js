@@ -21,10 +21,31 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Middleware to ensure DB connection before handling requests
+let isSeeded = false;
 app.use(async (req, res, next) => {
   try {
     if (process.env.MONGODB_URI) {
       await connectToDatabase();
+      if (!isSeeded) {
+        isSeeded = true;
+        // Verify default demo user exists
+        const { User } = require('../models');
+        const defaultUser = await User.findOne({ username: 'krishna_codeyogi' });
+        if (!defaultUser) {
+          const blogPinHash = await User.hashPin('1234');
+          const safePinHash = await User.hashPin('9999');
+          await User.create({
+            username: 'krishna_codeyogi',
+            displayName: 'Krishna Codeyogi',
+            email: 'krishna@safeblog.app',
+            bio: 'Building apps & documenting daily thoughts.',
+            blogPinHash,
+            safePinHash,
+            streakCount: 1,
+          });
+          console.log('[SafeBlog DB] Auto-seeded default user @krishna_codeyogi (PINs: 1234, 9999)');
+        }
+      }
     }
   } catch (err) {
     console.error('[SafeBlog DB Middleware] Connection error:', err.message);

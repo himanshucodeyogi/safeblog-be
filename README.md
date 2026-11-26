@@ -1,4 +1,4 @@
-# Safe Blog - Stealth Dual-Interface Backend
+# Safe Blog - Stealth Dual-Interface Mobile & Backend
 
 Safe Blog is a 100% incognito messaging application cloaked as a premium, minimalist journaling and blogging app. A dual-PIN gatekeeper routes users to either:
 1. **Decoy Safe Blog:** Calming, aesthetic journaling app with warm gold/orange accents, Serif typography, daily prompts, and mood tracking (Screenshots 1–10).
@@ -8,18 +8,25 @@ Safe Blog is a 100% incognito messaging application cloaked as a premium, minima
 
 ## Architecture & Tech Stack
 
+### Frontend (Flutter)
+- **Framework:** Flutter 3.47+ / Dart 3.13+
+- **State Management:** Riverpod 3.5 (`Notifier`, `NotifierProvider`)
+- **Typography:** `google_fonts` (Playfair Display for editorial Serif titles, Inter for body text)
+- **Local Storage:** `flutter_secure_storage` for PINs, JWT token, and session caching; `shared_preferences` for theme settings
+- **Real-Time Streaming:** Custom Server-Sent Events (SSE) Client over streaming HTTP (zero third-party dependencies)
+- **Dual Themes:** Dynamic switching between Decoy Blog (Light/Dark warm amber) and Secret Chat (Telegram Cerulean Blue / Slate)
+
+### Backend (Node.js on Vercel)
 - **Runtime:** Node.js (v20+)
 - **Server:** Express.js optimized for Vercel Serverless Functions
 - **Database:** MongoDB via Mongoose with connection pooling and serverless reuse
 - **Authentication:** Custom JWT with Dual-PIN gatekeeper + Google OAuth 2.0 (`google-auth-library`)
-- **Strict Data Isolation:** JWT tokens encode interface `mode` (`'DECOY'` or `'SECRET'`). Gatekeeper middleware strictly forbids Decoy tokens from touching private chat records.
-- **Real-Time Streaming:** Server-Sent Events (SSE) via `/api/chat/stream`
+- **Real-Time Engine:** Server-Sent Events (SSE) via `/api/chat/stream`
 - **Ghost Notifications:** Background polling endpoint `/api/chat/poll` designed for Flutter `workmanager`
-- **Zero Third-Party Real-Time Dependencies:** 100% custom SSE and polling (No Firebase, No Pusher)
 
 ---
 
-## Folder Structure
+## Project Structure
 
 ```
 blog app/
@@ -47,88 +54,92 @@ blog app/
 │   └── sseService.js         # In-memory SSE client hub, heartbeats, and event broadcast
 ├── test/
 │   └── backend_test.js       # Comprehensive Phase 2 test suite
-├── .env.example              # Environment variables template
-├── package.json              # Project scripts & dependencies
+│
+├── mobile/                   # Phase 3 Flutter Frontend
+│   ├── lib/
+│   │   ├── config/
+│   │   │   ├── api_config.dart       # Network & server endpoints
+│   │   │   └── app_theme.dart        # Decoy & Telegram themes (Light & Dark)
+│   │   ├── models/
+│   │   │   ├── user_model.dart       # User profile model
+│   │   │   ├── blog_model.dart       # Decoy blog & story model
+│   │   │   ├── chat_model.dart       # Telegram chat list model
+│   │   │   └── message_model.dart    # Telegram chat message model
+│   │   ├── services/
+│   │   │   ├── api_service.dart      # HTTP API Client
+│   │   │   ├── sse_service.dart      # Real-time SSE streaming client
+│   │   │   └── storage_service.dart  # Secure token & PIN storage
+│   │   ├── providers/
+│   │   │   ├── auth_provider.dart    # Riverpod Dual-PIN gatekeeper state
+│   │   │   ├── blog_provider.dart    # Riverpod Decoy blog state
+│   │   │   ├── chat_provider.dart    # Riverpod Telegram chat state & SSE events
+│   │   │   └── theme_provider.dart   # Riverpod Dark/Light theme state
+│   │   ├── screens/
+│   │   │   ├── lock_screen.dart      # Universal Dual-PIN Gatekeeper PIN pad
+│   │   │   ├── sync_animation_screen.dart # 1.5s Fake "Syncing Entries" screen
+│   │   │   ├── decoy/
+│   │   │   │   ├── decoy_main_screen.dart # Decoy Scaffold with bottom nav & FAB
+│   │   │   │   ├── today_tab.dart         # Screenshots 1 & 5
+│   │   │   │   ├── explore_tab.dart       # Screenshots 2 & 6
+│   │   │   │   ├── editor_screen.dart     # Screenshots 3 & 7
+│   │   │   │   ├── calendar_tab.dart      # Screenshots 3 & 8
+│   │   │   │   └── profile_tab.dart       # Screenshots 4 & 9
+│   │   │   └── secret/
+│   │   │       ├── chat_home_screen.dart         # Screenshots 11 & 13
+│   │   │       ├── chat_conversation_screen.dart # Screenshots 12 & 14
+│   │   │       └── user_search_screen.dart       # User discovery screen
+│   │   └── main.dart                 # App Entry & Gatekeeper Router
+│   ├── test/
+│   │   └── widget_test.dart          # Flutter smoke & gatekeeper tests
+│   └── pubspec.yaml
+│
+├── package.json              # Backend scripts & dependencies
 ├── vercel.json               # Vercel deployment & URL rewrites configuration
 └── safeblog.prd              # Product Requirements Document
 ```
 
 ---
 
-## Dual-PIN Gatekeeper Flow
+## Core Stealth Mechanics & UI Verification
 
-```
-                     ┌──────────────────────────┐
-                     │   Universal Lock Screen  │
-                     │       (PIN Pad UI)       │
-                     └────────────┬─────────────┘
-                                  │
-                       POST /api/auth/verify-pin
-                                  │
-               ┌──────────────────┴──────────────────┐
-               ▼                                     ▼
-        Matches Blog PIN                      Matches Safe PIN
-         (e.g., "1234")                        (e.g., "9999")
-               │                                     │
-               ▼                                     ▼
-    Mode: "DECOY"                         Mode: "SECRET"
-    Route: /decoy/blog                    Wait 1.5s (Fake Sync)
-    Scoped Decoy JWT                      Route: /secret/chat
-    Access to Decoy Blog only             Scoped Secret JWT
-                                          Access to Private Chat
-```
+### 1. Dual-PIN Lock Screen (The Gatekeeper)
+- Entering **Blog PIN** (e.g. `1234`) routes directly to the Decoy Safe Blog.
+- Entering **Safe PIN** (e.g. `9999`) triggers the **1.5s Fake "Syncing Entries" animation**, then smoothly opens the Private Chat.
+- Entering an incorrect PIN shakes the digits with an error.
 
----
+### 2. Panic Switch (Quick Escape)
+- Double-tapping the top App Bar anywhere inside the secret chat instantly terminates the secret session and flips the interface back to the Decoy Safe Blog in `0ms`.
 
-## MongoDB Schemas & UI Mapping
+### 3. Decoy Safe Blog (Screenshots 1–10)
+- **Today Tab:** Daily prompt card, *"Share Publicly"* vs *"Just Me"*, streak dots (`M T W T F S S`), habit reminder.
+- **Explore Tab:** Community stories, mood filters (`All`, `Happy`, `Reflective`, `Anxious`, `Sad`), tabs (`For You`, `Following`).
+- **Editor:** Character counter (`0 / 30,000`), mood selector chips, *"Save Draft"* and *"Save Entry"* buttons.
+- **Calendar Tab:** Month grid, month review statistics (day streak, days active, entries), daily entry logs.
+- **Profile Tab:** Initials avatar (`KC`), handle, bio, follower counters, share link, and sub-tabs (`Posts`, `Saved`, `Drafts`).
 
-| Schema | File | Corresponding UI Screens | Key Attributes |
-|---|---|---|---|
-| **Users** | `models/User.js` | Screenshots 4 & 9 (Profile)<br>Lock Screen | `googleId`, `email`, `username`, `displayName`, `avatarUrl`, `bio`, `blogPinHash` (Decoy PIN), `safePinHash` (Secret PIN), `streakCount`, `followers`, `following` |
-| **DecoyBlogs** | `models/DecoyBlog.js` | Screenshots 1 & 5 (Today)<br>Screenshots 2 & 6 (Explore)<br>Screenshots 3 & 7 (Editor)<br>Screenshots 4 & 8 (Calendar) | `userId`, `title`, `content` (up to 30k chars), `mood` (Happy, Reflective, Anxious, Sad, Calm, Grateful), `isPublic`, `isDraft`, `dailyPrompt`, `readTimeMinutes`, `likes`, `likesCount`, `commentsCount` |
-| **PrivateChats** | `models/PrivateChat.js` | Screenshots 11 & 13 (Chat Home - Dark & Light) | `participants`, `lastMessage`, `lastMessageAt`, `lastMessagePreview`, `unreadCounts`, `archivedBy`, `mutedBy`, `folder` |
-| **Messages** | `models/Message.js` | Screenshots 12 & 14 (Chat View - Dark & Light) | `chatId`, `senderId`, `text`, `isRead` (single vs double ticks), `readAt`, `replyTo` (quote replies), `reactions` (heart emojis) |
+### 4. Secret Private Chat (Screenshots 11–14)
+- **Chat Home:** Telegram cerulean blue app bar, archived chats item, circular avatars, mute icons, snippet previews, read ticks, and unread badges.
+- **Conversation Screen:** Real-time messages with SSE, reply quote boxes, heart emoji reactions (`❤️`), read receipt double ticks (green ticks for light, blue ticks for dark).
+- **User Discovery:** Search users by exact username or email.
 
 ---
 
-## API Endpoints Reference
+## Running the Project
 
-### 1. Authentication & Dual-PIN Gatekeeper (`/api/auth`)
-- `POST /api/auth/register` - Create account with distinct `blogPin` and `safePin`.
-- `POST /api/auth/verify-pin` - Universal lock screen router. Checks entered PIN and returns scoped JWT with either `DECOY` or `SECRET` mode.
-- `POST /api/auth/google` - Google OAuth 2.0 verification via `google-auth-library`.
-- `GET /api/auth/me` - Get profile and current active mode.
-- `PUT /api/auth/pins` - Update PINs (requires SECRET mode and current Safe PIN).
-
-### 2. Decoy Blog (`/api/blogs`)
-- `GET /api/blogs/today` - Today tab data: daily prompt, writing streak metrics, 7-day progress dots.
-- `GET /api/blogs/explore?mood=Happy&tab=for_you` - Community stories feed filterable by mood pills.
-- `GET /api/blogs/calendar/review?month=11&year=2026` - Monthly review and entries for calendar screen.
-- `GET /api/blogs/profile?userId=:id` - User profile stats (posts, saved, drafts, followers).
-- `POST /api/blogs` - Create blog entry or draft (up to 30,000 chars, auto calculates read time).
-- `GET /api/blogs/:id` - Read single entry (respects privacy toggle).
-- `PUT /api/blogs/:id` - Update entry or draft.
-- `DELETE /api/blogs/:id` - Delete entry.
-- `POST /api/blogs/:id/like` - Toggle like on public story.
-- `POST /api/blogs/:id/bookmark` - Toggle bookmark on public story.
-
-### 3. Private Chat & Secret Messaging (`/api/chat`)
-*Strictly protected by `authenticateToken` and `requireMode('SECRET')`.*
-- `GET /api/chat/users/search?q=:query` - User discovery by exact username or email.
-- `GET /api/chat/conversations` - Telegram-style chat list with avatars, snippet preview, and unread count.
-- `POST /api/chat/conversations` - Start or fetch 1-on-1 private chat.
-- `GET /api/chat/conversations/:chatId/messages` - Chat messages history (supports quoted replies and reactions).
-- `POST /api/chat/messages` - Send message; updates chat and immediately broadcasts via SSE.
-- `PATCH /api/chat/messages/read` - Mark messages read and trigger double checkmarks via SSE.
-- `POST /api/chat/messages/:messageId/react` - Add emoji reaction (e.g. `❤️`).
-- `GET /api/chat/stream?token=:jwt` - **Real-Time SSE Stream**. Delivers `connected`, `ping`, `new_message`, `message_read`, and `message_reaction` events.
-- `GET /api/chat/poll` - **Ghost Notification Polling**. Returns unread message count disguised with a daily writing prompt string for local phone notifications.
-
----
-
-## Running Verification Tests
-
+### Running Backend Tests
 ```bash
 npm test
 ```
-All unit and integration tests run end-to-end against the database and HTTP server.
+
+### Running Flutter Analysis & Tests
+```bash
+cd mobile
+flutter analyze
+flutter test
+```
+
+### Running Flutter App
+```bash
+cd mobile
+flutter run
+```
